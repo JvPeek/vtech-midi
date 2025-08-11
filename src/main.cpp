@@ -1,87 +1,78 @@
-#include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
-#include <MIDI.h>
-#include "midi_config.h" // Include our custom MIDI configuration
+#include "button_reader.h"
+#include "midi_logic.h"
+#include "midi_sender.h"
 
-Adafruit_USBD_MIDI usb_midi;
-MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MidiUsb);
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 
-bool lastButtonState[NUM_BUTTONS]; // Array to store the previous state of each button
-int currentBank = 0; // Global variable to store the current bank
+// Define queue lengths and task stack sizes/priorities
+#define BUTTON_EVENT_QUEUE_LENGTH 10
+#define MIDI_MESSAGE_QUEUE_LENGTH 10
+#define BUTTON_READER_TASK_STACK_SIZE 2048
+#define MIDI_LOGIC_TASK_STACK_SIZE 4096 // Logic might be heavier
+#define MIDI_SENDER_TASK_STACK_SIZE 2048
+#define TASK_PRIORITY 1 // All tasks same priority for now
+
+// Global queue handles (declared extern in respective headers)
+// Defined in their respective .cpp files
+
+// Global currentBank variable (declared extern in midi_logic.h)
+extern int currentBank; 
 
 void setup() {
-  TinyUSBDevice.setManufacturerDescriptor("PIO");
-  TinyUSBDevice.setProductDescriptor("EspUSB");
-  MidiUsb.begin(MIDI_CHANNEL_OMNI);
-  Serial.begin(115200); // Initialize serial for debugging
-  Serial.println("Midi USB setup done");
+  // Initialize Serial for debugging (already done in midi_sender.cpp, but good to have here too)
+  Serial.begin(115200);
+  Serial.println("Starting VTech MIDI Refactor...");
 
-  // Initialize button pins and their states
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    pinMode(buttons[i].pin, INPUT_PULLUP); // Use INPUT_PULLUP for active-low buttons
-    lastButtonState[i] = digitalRead(buttons[i].pin); // Set initial state
+  // Create the queues
+  xButtonEventQueue = xQueueCreate(BUTTON_EVENT_QUEUE_LENGTH, sizeof(ButtonEvent));
+  xMidiMessageQueue = xQueueCreate(MIDI_MESSAGE_QUEUE_LENGTH, sizeof(MidiMessage));
+
+  if (xButtonEventQueue == NULL || xMidiMessageQueue == NULL) {
+    Serial.println("Failed to create FreeRTOS queues. Out of memory?");
+    while (1); // Halt if queues cannot be created
   }
 
-  // Initialize bank switch pins
-  pinMode(BANK_SWITCH_PIN_0, INPUT_PULLUP);
-  pinMode(BANK_SWITCH_PIN_1, INPUT_PULLUP);
-  pinMode(BANK_SWITCH_PIN_2, INPUT_PULLUP);
+  // Initialize modules
+  initButtonReader();
+  initMidiLogic();
+  initMidiSender();
+
+  // Create and launch the FreeRTOS tasks
+  xTaskCreate(
+    button_reader_task,     // Task function
+    "ButtonReader",         // Name of task
+    BUTTON_READER_TASK_STACK_SIZE, // Stack size (bytes)
+    &currentBank,           // Parameter to pass to the task (pointer to currentBank)
+    TASK_PRIORITY,          // Task priority
+    NULL                    // Task handle
+  );
+
+  xTaskCreate(
+    midi_logic_task,        // Task function
+    "MidiLogic",            // Name of task
+    MIDI_LOGIC_TASK_STACK_SIZE, // Stack size (bytes)
+    NULL,                   // Parameter to pass to the task
+    TASK_PRIORITY,          // Task priority
+    NULL                    // Task handle
+  );
+
+  xTaskCreate(
+    midi_sender_task,       // Task function
+    "MidiSender",           // Name of task
+    MIDI_SENDER_TASK_STACK_SIZE, // Stack size (bytes)
+    NULL,                   // Parameter to pass to the task
+    TASK_PRIORITY,          // Task priority
+    NULL                    // Task handle
+  );
+
+  Serial.println("FreeRTOS tasks created. Starting scheduler...");
+  // The scheduler starts automatically after setup() on ESP-IDF/Arduino
 }
 
 void loop() {
-  // Read bank switch pins and determine current bank
-  int newBank = 0; // Default to Bank 0 (all pins HIGH)
-
-  if (digitalRead(BANK_SWITCH_PIN_0) == LOW) {
-    newBank = 1;
-  } else if (digitalRead(BANK_SWITCH_PIN_1) == LOW) {
-    newBank = 2;
-  } else if (digitalRead(BANK_SWITCH_PIN_2) == LOW) {
-    newBank = 3;
-  }
-
-  if (newBank != currentBank) {
-    currentBank = newBank;
-    Serial.print("Bank changed to: ");
-    Serial.println(currentBank);
-    // Send current bank as CC 0
-    MidiUsb.sendControlChange(BANK_CC_NUMBER, currentBank, 1); // CC for bank, value = currentBank, channel 1
-    Serial.print("Sending Bank CC (CC ");
-    Serial.print(BANK_CC_NUMBER);
-    Serial.print(") with value: ");
-    Serial.println(currentBank);
-  }
-
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    bool currentButtonState = digitalRead(buttons[i].pin);
-
-    // Only send MIDI message if the button state has changed
-    if (currentButtonState != lastButtonState[i]) {
-      // Get the CC number for the current bank
-      uint8_t cc_to_send = buttons[i].cc_numbers[currentBank];
-
-      if (currentButtonState == LOW) { // Button pressed (active-low)
-        MidiUsb.sendControlChange(cc_to_send, 127, 1);
-        Serial.print("Button ");
-        Serial.print(buttons[i].pin);
-        Serial.print(" pressed, sending CC ");
-        Serial.print(cc_to_send);
-        Serial.print(" (Bank ");
-        Serial.print(currentBank);
-        Serial.println(")");
-      } else { // Button released
-        MidiUsb.sendControlChange(cc_to_send, 0, 1);
-        Serial.print("Button ");
-        Serial.print(buttons[i].pin);
-        Serial.print(" released, sending CC ");
-        Serial.print(cc_to_send);
-        Serial.print(" (Bank ");
-        Serial.print(currentBank);
-        Serial.println(")");
-      }
-      lastButtonState[i] = currentButtonState; // Update the last state
-    }
-  }
-  
-  delay(1); // Small delay to prevent busy-waiting
+  // loop() is now empty as FreeRTOS tasks handle everything
+  vTaskDelay(pdMS_TO_TICKS(1)); // Keep the loop alive, yield to other tasks
 }
