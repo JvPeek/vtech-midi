@@ -1,4 +1,4 @@
-This project implements a MIDI controller using an ESP32-S3, PlatformIO, and the Adafruit TinyUSB library.
+This project implements a MIDI controller using an ESP32-S3, PlatformIO, and the Adafruit TinyUSB library. It features a highly responsive and reliable design, ensuring smooth MIDI performance.
 
 This specific implementation is designed for a **Winnie the Pooh learning laptop MIDI controller**.
 
@@ -12,6 +12,16 @@ This specific implementation is designed for a **Winnie the Pooh learning laptop
     *   Bank 2: Second bank switch pin is LOW (active).
     *   Bank 3: Third bank switch pin is LOW (active).
 *   **Configurable Bank CC Output:** Sends the current active bank as a MIDI Control Change message on a configurable CC number (defaulting to CC 0).
+
+## Architecture
+
+This project has been written to utilize a multi-threaded architecture based on FreeRTOS, enhancing responsiveness and maintainability. Key functionalities are now separated into dedicated tasks:
+
+*   **Button Reader Task:** Continuously monitors physical button states and efficiently detects changes.
+*   **MIDI Logic Task:** Processes button events and bank switch inputs, determining the appropriate MIDI messages to send.
+*   **MIDI Sender Task:** Handles the reliable transmission of MIDI messages over USB.
+
+This modular design ensures that each component operates independently, improving overall system performance and making future development and debugging more straightforward.
 
 ## Pinout
 
