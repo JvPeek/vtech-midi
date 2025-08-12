@@ -25,6 +25,12 @@ void midi_sender_task(void *pvParameters) {
       // Process and send the MIDI message
       switch (receivedMsg.type) {
         case midi::MidiType::ControlChange:
+          Serial.print("Sending CC: Num=");
+          Serial.print(receivedMsg.data1);
+          Serial.print(", Val=");
+          Serial.print(receivedMsg.data2);
+          Serial.print(", Ch=");
+          Serial.println(receivedMsg.channel);
           MidiUsb.sendControlChange(receivedMsg.data1, receivedMsg.data2, receivedMsg.channel);
           break;
         // Add other MIDI message types as needed (NoteOn, NoteOff, etc.)

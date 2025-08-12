@@ -14,7 +14,7 @@ const uint8_t BANK_SWITCH_PIN_1 = 11;
 const uint8_t BANK_SWITCH_PIN_2 = 12;
 
 // Define the CC number for sending the current bank value
-const uint8_t BANK_CC_NUMBER = 0; // Default to CC 0
+const uint8_t BANK_CC_NUMBER = 1; // Changed to CC 21 to avoid round numbers
 
 struct ButtonConfig {
     uint8_t pin;
@@ -44,14 +44,14 @@ struct ButtonConfig {
 // Define your buttons here
 // {BUTTON_PIN, {CC_BANK0, CC_BANK1, CC_BANK2, CC_BANK3}},
 const ButtonConfig buttons[] = {
-    {1, {10, 20, 30, 40}},  // Button 1
-    {2, {11, 21, 31, 41}},  // Button 2
-    {4, {12, 22, 32, 42}},  // Button 3
-    {5, {13, 23, 33, 43}},  // Button Square
-    {6, {14, 24, 34, 44}},  // Button Circle
-    {7, {15, 25, 35, 45}},  // Button Star
-    {8, {16, 26, 36, 46}},  // Button Triangle
-    {9, {17, 27, 37, 47}},  // Button Heart
+    {1, {21, 31, 41, 51}},  // Button 1
+    {2, {22, 32, 42, 52}},  // Button 2
+    {4, {23, 33, 43, 53}},  // Button 3
+    {5, {24, 34, 44, 54}},  // Button Square
+    {6, {25, 35, 45, 55}},  // Button Circle
+    {7, {26, 36, 46, 56}},  // Button Star
+    {8, {27, 37, 47, 57}},  // Button Triangle
+    {9, {28, 38, 48, 58}},  // Button Heart
 };
 
 const int NUM_BUTTONS = sizeof(buttons) / sizeof(buttons[0]);
